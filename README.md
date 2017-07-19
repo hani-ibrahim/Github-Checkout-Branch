@@ -33,6 +33,5 @@ and the second argument (optional) is the index of the found branch if there are
 | $1        | String | required | Part from the branch name |
 | $2        | Int    | optional | Index of the branch you want to checkout if there are more than one branch found |
 
-# License:
---------
+# License
 MIT License
