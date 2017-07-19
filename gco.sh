@@ -15,8 +15,8 @@
 #
 # "goc master" --> checkout master branch directly
 # "goc release" --> promot you with `release` & `release-hotfix` to choose from them
-# "goc release 0" --> checkout release branch directly
-# "goc release 1" --> checkout release-hotfix branch directly 
+# "goc release 1" --> checkout release branch directly
+# "goc release 2" --> checkout release-hotfix branch directly 
 #
 # Note: you need to copy the function to your ~/.bash_profile
 #
