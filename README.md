@@ -1,7 +1,7 @@
 # Github Checkout Branch
 ~/.bash_profile helper to checkout a git branch quickly 
 
-##### Example
+### Example
 Given that we have the following branches:
 - master
 - develop
@@ -10,7 +10,7 @@ Given that we have the following branches:
 - ticket-104-fix-readme
 - ticket-77-update-translations
 
-Then:
+#### Then:
 
 | Command        | Response                                   | Note                     |
 | :------------- | :----------------------------------------- | :----------------------- |
