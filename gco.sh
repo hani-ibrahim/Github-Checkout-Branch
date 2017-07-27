@@ -22,7 +22,7 @@
 #
 gco() {
     if (( ${#1} == 0 )); then
-        echo -e "\033[0;31mERROR - Please enter branch name\033[0m"
+        echo -e "\033[0;31mERROR - Please enter a branch name\033[0m"
         return
     fi
 
