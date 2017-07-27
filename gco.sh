@@ -30,7 +30,7 @@ gco() {
     read -a branchesNameArray <<<$branchesName
     
     if (( ${#branchesNameArray[@]} == 0 )); then
-        echo -e "\033[0;31mERROR - Cann't find the branch\033[0m"
+        echo -e "\033[0;31mERROR - Can't find the branch\033[0m"
     elif (( ${#branchesNameArray[@]} > 1 )); then
         if [ ${2} ]; then
             numberRegrex='^[0-9]+$'
@@ -51,7 +51,7 @@ gco() {
             for i in "${!branchesNameArray[@]}"; do
                 echo "$(($i+1)). ${branchesNameArray[$i]}"
             done
-            read -p "Please select a brach: " selectedBranch
+            read -p "Please select a branch: " selectedBranch
             gco $1 $selectedBranch
         fi
     else
