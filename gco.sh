@@ -26,7 +26,7 @@ gco() {
         return
     fi
 
-    local branchesName=`git branch -a | grep -v \* | sed "s/\'/\\\\\'/g" | sed 's/\"/\\\\\"/g' | grep "$1" | grep "remotes/origin/" | sed 's/remotes\/origin\///g' | xargs`
+    local branchesName=`git branch -a | grep -v "\*\|\->" | sed "s/\'/\\\\\'/g" | sed 's/\"/\\\\\"/g' | grep "$1" | grep "remotes/origin/" | sed 's/remotes\/origin\///g' | xargs`
     read -a branchesNameArray <<<$branchesName
     
     if (( ${#branchesNameArray[@]} == 0 )); then
