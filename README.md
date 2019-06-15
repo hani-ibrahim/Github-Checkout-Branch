@@ -42,11 +42,11 @@ cd ~/Desktop/Github-Checkout-Branch
 ```
 2. copy `gco.sh` to home directory 
 ```sh
-cp gco.sh ~/gco.sh
+cp gco.sh ~/.gco.sh
 ```
-3. source `~/gco.sh` into your `bash_profile` file
+3. source `gco.sh` into your `bash_profile` file
 ```sh
-echo "source ~/gco.sh" >> ~/.bash_profile
+echo "source ~/.gco.sh" >> ~/.bash_profile
 ```
 4. (optional) delete the repo
 ```sh
@@ -62,11 +62,11 @@ cd ~/Desktop/Github-Checkout-Branch
 ```
 2. copy `gco.zsh` to home directory 
 ```sh
-cp gco.zsh ~/gco.zsh
+cp gco.zsh ~/.gco.zsh
 ```
-3. source `~/gco.zsh` into your `zshrc` file
+3. source `gco.zsh` into your `zshrc` file
 ```sh
-echo "source ~/gco.zsh" >> ~/.zshrc
+echo "source ~/.gco.zsh" >> ~/.zshrc
 ```
 4. (optional) delete the repo
 ```sh
