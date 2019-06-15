@@ -48,7 +48,11 @@ cp gco.sh ~/.gco.sh
 ```sh
 echo "source ~/.gco.sh" >> ~/.bash_profile
 ```
-4. (optional) delete the repo
+4. refresh `bash_profile` file
+```sh
+. ~/.bash_profile
+```
+5. (optional) delete the repo
 ```sh
 rm -rf ~/Desktop/Github-Checkout-Branch
 ```
@@ -68,7 +72,11 @@ cp gco.zsh ~/.gco.zsh
 ```sh
 echo "source ~/.gco.zsh" >> ~/.zshrc
 ```
-4. (optional) delete the repo
+4. refresh `zshrc` file
+```sh
+. ~/.zshrc
+```
+5. (optional) delete the repo
 ```sh
 rm -rf ~/Desktop/Github-Checkout-Branch
 ```
