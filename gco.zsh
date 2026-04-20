@@ -59,13 +59,20 @@ gco_select_from_list() {
     local choice=""
 
     for item in "${items[@]}"; do
-        echo "$i. $item"
+        print -u2 -- "$i. $item"
         ((i++))
     done
 
     while true; do
-        printf "%s" "$prompt"
-        read choice
+        printf "%s" "$prompt" >&2
+        if [[ ! -t 0 ]]; then
+            print -P "%F{red}ERROR - Interactive selection requires a TTY%f" >&2
+            return 1
+        fi
+        read -r choice || {
+            print -P "%F{red}ERROR - Selection cancelled%f" >&2
+            return 1
+        }
 
         if [[ "$choice" =~ '^[0-9]+$' ]]; then
             if (( choice >= 1 && choice <= ${#items[@]} )); then

@@ -1,87 +1,88 @@
 # Github Checkout Branch
-terminal helper to checkout a git branch quickly 
 
-### Example
-Given that we have the following branches:
-- master
-- develop
-- release
-- release-2.2
-- ticket-104-fix-readme
-- ticket-77-update-translations
+`gco` and `gcb` are lightweight Git helpers for fast branch switching.
 
-#### Then:
+- `gco` finds a branch from cached `origin/*` refs and switches to it.
+- `gcb` refreshes remote refs and cleans up merged or deleted branches/worktrees.
+- In a worktree workspace, `gco` opens or creates a dedicated worktree for the selected branch.
+- In a normal repository, `gco` switches the current repo to the selected branch.
 
-| Command        | Response                                   | Note                     |
-| :------------- | :----------------------------------------- | :----------------------- |
-| `gco 2.2`      | `git checkout release-2.2`                   | Checkout branch directly |
-| `gco dev`      | `git checkout develop`                       | Checkout branch directly |
-| `gco 104`      | `git checkout ticket-104-fix-readme`         | Checkout branch directly |
-| `gco ticket`   | ERROR - More than one branch found:<br>1. ticket-104-fix-readme<br>2. ticket-77-update-translations | Display list with the available branches |
-| `gco ticket 2` | `git checkout ticket-77-update-translations` | Checkout branch directly |
+## Commands
 
+### `gco`
 
-# Usage
+`gco <query>`
 
-This function takes two argument the first one is part of the branch name you want to checkout,
-and the second argument (optional) is the index of the found branch if there are more than one branch found
+Searches cached `origin/*` branches using:
 
-| Paramater | Type   | Status   | Description               |
-| :-------- | :----- | :------- | :------------------------ |
-| $1        | String | required | Part from the branch name |
-| $2        | Int    | optional | Index of the branch you want to checkout if there are more than one branch found |
+1. exact match first
+2. case-insensitive partial match second
 
-# Installation
+If exactly one branch matches, `gco` switches to it immediately.
+If multiple branches match, `gco` shows an interactive numbered list and asks you to choose one.
 
-## Install for bash terminal
+Example branches:
 
-1. clone repo
+- `main`
+- `develop`
+- `release-2.2`
+- `ticket-104-fix-readme`
+- `ticket-77-update-translations`
+
+Example usage:
+
+| Command | Result |
+| :------ | :----- |
+| `gco main` | Switch to `main` |
+| `gco dev` | Switch to `develop` |
+| `gco 104` | Switch to `ticket-104-fix-readme` |
+| `gco ticket` | Show matching branches and prompt for a selection |
+
+### `gcb`
+
+`gcb [--force]`
+
+Refreshes the branch cache used by `gco`.
+
+In a normal repository it:
+
+- runs `git fetch origin --prune`
+- updates `origin/HEAD`
+- deletes local branches already merged into the default branch
+- runs `git pull --rebase`
+
+In a worktree workspace it:
+
+- refreshes `refs/remotes/origin/*`
+- prunes stale remote-tracking refs
+- removes worktrees whose branches were deleted on origin
+- removes worktrees already merged into the remote default branch
+- skips dirty worktrees unless `--force` is provided
+- runs `git pull --rebase` when inside a checked-out worktree
+
+## Usage Notes
+
+- Run `gcb` before `gco` if a branch was created recently.
+- `gco` only searches cached remote refs, not the network directly.
+- In worktree mode, branches are created under the workspace root using the branch name as the path.
+
+## Installation
+
+Clone the repository and source the scripts from your shell startup file:
+
 ```sh
 git clone git@github.com:hani-ibrahim/Github-Checkout-Branch.git ~/Desktop/Github-Checkout-Branch
-cd ~/Desktop/Github-Checkout-Branch
-```
-2. copy `gco.sh` to home directory 
-```sh
-cp gco.sh ~/.gco.sh
-```
-3. source `gco.sh` into your `bash_profile` file
-```sh
-echo "source ~/.gco.sh" >> ~/.bash_profile
-```
-4. refresh `bash_profile` file
-```sh
-. ~/.bash_profile
-```
-5. (optional) delete the repo
-```sh
-rm -rf ~/Desktop/Github-Checkout-Branch
 ```
 
-## Install for zsh terminal
-
-1. clone repo
 ```sh
-git clone git@github.com:hani-ibrahim/Github-Checkout-Branch.git ~/Desktop/Github-Checkout-Branch
-cd ~/Desktop/Github-Checkout-Branch
-```
-2. copy `gco.zsh` to home directory 
-```sh
-cp gco.zsh ~/.gco.zsh
-```
-3. source `gco.zsh` into your `zshrc` file
-```sh
-echo "source ~/.gco.zsh" >> ~/.zshrc
-```
-4. refresh `zshrc` file
-```sh
-. ~/.zshrc
-```
-5. (optional) delete the repo
-```sh
-rm -rf ~/Desktop/Github-Checkout-Branch
+source ~/Desktop/Github-Checkout-Branch/gco.zsh
+source ~/Desktop/Github-Checkout-Branch/gcb.zsh
 ```
 
-# License
+Then reload your shell config.
+
+## License
+
 MIT License
 
 > Copyright (c) 2017 Hani Ibrahim
