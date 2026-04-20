@@ -180,17 +180,46 @@ Effect:
 
 ### Worktree Workspace Mode
 
-This is a workspace whose root contains a shared bare repo in `.bare`.
+This is a workspace whose root contains a shared bare clone in `.bare`.
 
-Example layout:
+Expected structure:
 
 ```text
 /workspace
 ├── .bare
 ├── main
 ├── develop
-└── release/2.2
+└── ticket-104-fix-readme
 ```
+
+What each path is:
+
+- `/workspace/.bare` is the shared bare clone
+- `/workspace/main` is a worktree for the `main` branch
+- `/workspace/develop` is a worktree for the `develop` branch
+- `/workspace/ticket-104-fix-readme` is a worktree for that feature branch
+
+The main folder is the workspace root itself, and `.bare` lives inside it.
+`gco` detects this mode by checking for a `.bare` directory in the current workspace root.
+
+Example setup:
+
+```sh
+mkdir -p ~/work/my-repo
+git clone --bare git@github.com:your-org/your-repo.git ~/work/my-repo/.bare
+git --git-dir=~/work/my-repo/.bare remote set-head origin -a
+git --git-dir=~/work/my-repo/.bare worktree add ~/work/my-repo/main main
+```
+
+After that, the workspace looks like:
+
+```text
+~/work/my-repo
+├── .bare
+└── main
+```
+
+From there, running `gco develop` can create or open `~/work/my-repo/develop`.
 
 Typical flow:
 
@@ -207,10 +236,11 @@ Effect:
 
 ## Installation
 
-Clone the repository:
+Clone the repository into the current directory and enter it:
 
 ```sh
-git clone git@github.com:hani-ibrahim/Github-Checkout-Branch.git ~/Desktop/Github-Checkout-Branch
+git clone git@github.com:hani-ibrahim/Github-Checkout-Branch.git
+cd Github-Checkout-Branch
 ```
 
 Add both scripts to your shell startup file so they are available in every new terminal session.
@@ -218,8 +248,8 @@ Add both scripts to your shell startup file so they are available in every new t
 Example:
 
 ```sh
-echo 'source ~/Desktop/Github-Checkout-Branch/gco.zsh' >> ~/.zshrc
-echo 'source ~/Desktop/Github-Checkout-Branch/gcb.zsh' >> ~/.zshrc
+echo "source \"$PWD/gco.zsh\"" >> ~/.zshrc
+echo "source \"$PWD/gcb.zsh\"" >> ~/.zshrc
 ```
 
 Reload your shell config:
@@ -229,6 +259,35 @@ source ~/.zshrc
 ```
 
 If you use a different startup file, add the same `source ...` lines there instead.
+
+## Worktree Workspace Setup Example
+
+If you want to use the `.bare` workspace mode, create the repository like this:
+
+```sh
+mkdir -p ~/work/my-repo
+git clone --bare git@github.com:your-org/your-repo.git ~/work/my-repo/.bare
+git --git-dir=~/work/my-repo/.bare fetch origin --prune
+git --git-dir=~/work/my-repo/.bare remote set-head origin -a
+git --git-dir=~/work/my-repo/.bare worktree add ~/work/my-repo/main main
+```
+
+Then work from the workspace root:
+
+```sh
+cd ~/work/my-repo
+gcb
+gco develop
+```
+
+This gives you a layout like:
+
+```text
+~/work/my-repo
+├── .bare
+├── main
+└── develop
+```
 
 ## Quick Start
 
