@@ -7,12 +7,30 @@ gcb() {
     local log_prefix=""
     local log_branch=""
     local log_message=""
+    local -a checked_out_branches
 
     log_branch_status() {
         log_prefix="$1"
         log_branch="$2"
         log_message="$3"
         print -r -- "[$log_prefix] $log_branch - $log_message"
+    }
+
+    branch_exists_on_origin() {
+        git --git-dir="$git_dir" show-ref --verify --quiet "refs/remotes/origin/$1"
+    }
+
+    branch_is_checked_out() {
+        local branch_name_to_find="$1"
+        local checked_out_branch=""
+
+        for checked_out_branch in "${checked_out_branches[@]}"; do
+            if [[ "$checked_out_branch" == "$branch_name_to_find" ]]; then
+                return 0
+            fi
+        done
+
+        return 1
     }
 
     if [[ "$1" == "--force" || "$1" == "-f" ]]; then
@@ -73,13 +91,6 @@ gcb() {
         )}")
         local default_branch_name="${default_remote_branch#origin/}"
 
-        local -A remote_branch_map
-        local -A checked_out_branch_map
-        local rb=""
-        for rb in "${remote_branches[@]}"; do
-            remote_branch_map["$rb"]=1
-        done
-
         local wt_path=""
         local wt_branch=""
         local branch_name=""
@@ -88,28 +99,24 @@ gcb() {
         local wt_upstream=""
         local pull_output=""
 
-        while IFS=$'\t' read -r wt_path wt_branch; do
-            [[ -z "$wt_path" || -z "$wt_branch" ]] && continue
-            checked_out_branch_map["$wt_branch"]=1
-        done < <(
+        checked_out_branches=("${(@f)$(
             git --git-dir="$git_dir" worktree list --porcelain \
             | awk '
-                $1 == "worktree" { path = substr($0, 10) }
                 $1 == "branch" {
                     branch = $2
                     sub(/^refs\/heads\//, "", branch)
-                    print path "\t" branch
+                    print branch
                 }
             '
-        )
+        )}")
 
         while IFS= read -r branch_name; do
             [[ -z "$branch_name" ]] && continue
-            [[ -n "${checked_out_branch_map[$branch_name]}" ]] && continue
+            branch_is_checked_out "$branch_name" && continue
 
             branch_delete_reason=""
 
-            if [[ -z "${remote_branch_map[$branch_name]}" ]]; then
+            if ! branch_exists_on_origin "$branch_name"; then
                 branch_delete_reason="deleted on origin"
             elif [[ -n "$default_remote_branch" && "$branch_name" != "$default_branch_name" ]]; then
                 if git --git-dir="$git_dir" merge-base --is-ancestor \
@@ -136,7 +143,7 @@ gcb() {
                 continue
             fi
 
-            if [[ -z "${remote_branch_map[$wt_branch]}" ]]; then
+            if ! branch_exists_on_origin "$wt_branch"; then
                 log_branch_status "SKIP" "$wt_branch" "deleted on origin"
                 continue
             fi
