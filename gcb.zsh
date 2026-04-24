@@ -60,51 +60,88 @@ gcb() {
             git --git-dir="$git_dir" for-each-ref refs/remotes/origin --format='%(refname:strip=3)' \
             | grep -v '^HEAD$'
         )}")
+        local default_branch_name="${default_remote_branch#origin/}"
 
         local -A remote_branch_map
+        local -A checked_out_branch_map
         local rb=""
         for rb in "${remote_branches[@]}"; do
             remote_branch_map["$rb"]=1
         done
 
-        local current_worktree=""
-        current_worktree="$(pwd -P)"
-
         local wt_path=""
         local wt_branch=""
-        local remove_reason=""
+        local branch_name=""
+        local branch_delete_reason=""
+        local wt_status=""
+        local wt_upstream=""
+
+        while IFS=$'\t' read -r wt_path wt_branch; do
+            [[ -z "$wt_path" || -z "$wt_branch" ]] && continue
+            checked_out_branch_map["$wt_branch"]=1
+        done < <(
+            git --git-dir="$git_dir" worktree list --porcelain \
+            | awk '
+                $1 == "worktree" { path = substr($0, 10) }
+                $1 == "branch" {
+                    branch = $2
+                    sub(/^refs\/heads\//, "", branch)
+                    print path "\t" branch
+                }
+            '
+        )
+
+        while IFS= read -r branch_name; do
+            [[ -z "$branch_name" ]] && continue
+            [[ -n "${checked_out_branch_map[$branch_name]}" ]] && continue
+
+            branch_delete_reason=""
+
+            if [[ -z "${remote_branch_map[$branch_name]}" ]]; then
+                branch_delete_reason="deleted on origin"
+            elif [[ -n "$default_remote_branch" && "$branch_name" != "$default_branch_name" ]]; then
+                if git --git-dir="$git_dir" merge-base --is-ancestor \
+                    "refs/heads/$branch_name" "refs/remotes/$default_remote_branch" 2>/dev/null; then
+                    branch_delete_reason="merged into $default_remote_branch"
+                fi
+            fi
+
+            if [[ -n "$branch_delete_reason" ]]; then
+                echo "Deleting local branch: $branch_name ($branch_delete_reason)"
+                git --git-dir="$git_dir" branch -D "$branch_name" >/dev/null 2>&1 || \
+                    print -P "%F{yellow}WARNING - Failed to delete branch: $branch_name%f"
+            fi
+        done < <(
+            git --git-dir="$git_dir" for-each-ref refs/heads --format='%(refname:strip=2)'
+        )
 
         while IFS=$'\t' read -r wt_path wt_branch; do
             [[ -z "$wt_path" || -z "$wt_branch" ]] && continue
 
-            # Never remove the current worktree.
-            if [[ "$wt_path" == "$current_worktree" ]]; then
+            if [[ ! -d "$wt_path" ]]; then
                 continue
             fi
 
-            remove_reason=""
-
-            # Remove if branch no longer exists on origin
             if [[ -z "${remote_branch_map[$wt_branch]}" ]]; then
-                remove_reason="deleted on origin"
-            # Remove if branch is merged into the remote default branch
-            elif [[ -n "$default_remote_branch" ]]; then
-                if git --git-dir="$git_dir" merge-base --is-ancestor \
-                    "refs/heads/$wt_branch" "refs/remotes/$default_remote_branch" 2>/dev/null; then
-                    remove_reason="merged into $default_remote_branch"
-                fi
+                echo "Skipping worktree: $wt_branch (branch deleted on origin)"
+                continue
             fi
 
-            if [[ -n "$remove_reason" ]]; then
-                echo "Removing worktree: $wt_branch ($remove_reason)"
-                if (( force_delete == 1 )); then
-                    git --git-dir="$git_dir" worktree remove --force "$wt_path" || \
-                        print -P "%F{yellow}WARNING - Failed to force-remove: $wt_path%f"
-                else
-                    git --git-dir="$git_dir" worktree remove "$wt_path" || \
-                        print -P "%F{yellow}WARNING - Skipped dirty worktree: $wt_path (use gcb --force)%f"
-                fi
+            wt_status="$(git -C "$wt_path" status --porcelain 2>/dev/null)"
+            if [[ -n "$wt_status" ]]; then
+                echo "Skipping worktree: $wt_branch (uncommitted changes)"
+                continue
             fi
+
+            wt_upstream="$(git -C "$wt_path" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
+            if [[ -z "$wt_upstream" ]]; then
+                echo "Skipping worktree: $wt_branch (no upstream configured)"
+                continue
+            fi
+
+            echo "Updating worktree: $wt_branch"
+            git -C "$wt_path" pull --rebase || \
+                print -P "%F{yellow}WARNING - Failed to update worktree: $wt_path%f"
         done < <(
             git --git-dir="$git_dir" worktree list --porcelain \
             | awk '
@@ -118,13 +155,6 @@ gcb() {
         )
 
         git --git-dir="$git_dir" worktree prune
-
-        if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            git pull --rebase
-        else
-            echo "Remote refs refreshed. Not inside a checked-out worktree, so no pull was run."
-        fi
-
         return 0
     fi
 
@@ -157,6 +187,13 @@ gcb() {
     done < <(
         git for-each-ref refs/heads --merged="$default_branch" --format='%(refname:strip=2)'
     )
+
+    local repo_status=""
+    repo_status="$(git status --porcelain 2>/dev/null)"
+    if [[ -n "$repo_status" ]]; then
+        echo "Skipping current branch update: $current_branch (uncommitted changes)"
+        return 0
+    fi
 
     git pull --rebase
 }

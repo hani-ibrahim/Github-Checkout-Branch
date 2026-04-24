@@ -3,7 +3,7 @@
 `gco` and `gcb` are lightweight Git helpers for fast branch switching.
 
 - `gco` finds a branch from cached `origin/*` refs and switches to it.
-- `gcb` refreshes remote refs and cleans up merged or deleted branches/worktrees.
+- `gcb` refreshes remote refs, updates clean worktrees in place, and cleans up safe local branches.
 - In a worktree workspace, `gco` opens or creates a dedicated worktree for the selected branch.
 - In a normal repository, `gco` switches the current repo to the selected branch.
 
@@ -115,15 +115,15 @@ Refreshes the branch cache used by `gco`.
 
 | Parameter | Required | Description |
 | :-------- | :------- | :---------- |
-| `--force` | no | Force-remove stale worktrees even if they have uncommitted changes |
+| `--force` | no | Accepted for backward compatibility, but currently has no effect |
 | `-f` | no | Short form of `--force` |
 
 #### Examples
 
 | Command | Result |
 | :------ | :----- |
-| `gcb` | Refresh remote refs and clean up safe-to-remove branches/worktrees |
-| `gcb --force` | Same as `gcb`, but also force-remove dirty stale worktrees in worktree mode |
+| `gcb` | Refresh remote refs, update clean branches, and clean up safe local branches |
+| `gcb --force` | Same result as `gcb`; the flag is currently ignored |
 | `gcb -f` | Short form of `gcb --force` |
 
 In a normal repository it:
@@ -131,28 +131,30 @@ In a normal repository it:
 - runs `git fetch origin --prune`
 - updates `origin/HEAD`
 - deletes local branches already merged into the default branch
-- runs `git pull --rebase`
+- runs `git pull --rebase` only when the current branch is clean
 
 Notes for normal repository mode:
 
 - `--force` has no effect here
 - merged local branches are deleted automatically, excluding the current branch and the default branch
+- if the current branch has uncommitted changes, `gcb` skips `git pull --rebase`
 
 In a worktree workspace it:
 
 - refreshes `refs/remotes/origin/*`
 - prunes stale remote-tracking refs
-- removes worktrees whose branches were deleted on origin
-- removes worktrees already merged into the remote default branch
-- skips dirty worktrees unless `--force` is provided
-- runs `git pull --rebase` when inside a checked-out worktree
+- deletes local branches that are not checked out in any worktree when they were deleted on `origin`
+- deletes local branches that are not checked out in any worktree when they are already merged into the remote default branch
+- updates each checked-out worktree in place with `git pull --rebase`
+- skips any worktree with uncommitted changes
+- skips any worktree whose branch no longer exists on `origin`
+- skips any worktree without an upstream branch configured
 
 Notes for worktree mode:
 
-- a worktree may be removed because its branch was deleted on `origin`
-- a worktree may also be removed because its branch is already merged into the remote default branch
-- without `--force`, dirty worktrees are kept and a warning is printed
-- with `--force`, dirty stale worktrees are removed with `git worktree remove --force`
+- worktree directories are not removed by `gcb`
+- only local branches that are not currently checked out are eligible for deletion
+- dirty worktrees are left untouched so `gcb` does not spam pull/rebase errors
 
 ## Usage Notes
 
@@ -231,7 +233,7 @@ gco ticket
 
 Effect:
 
-- `gcb` refreshes the shared remote cache and removes stale worktrees
+- `gcb` refreshes the shared remote cache, updates clean worktrees, and removes only safe local branches
 - `gco` opens an existing worktree for the selected branch, or creates a new one if needed
 
 ## Installation
