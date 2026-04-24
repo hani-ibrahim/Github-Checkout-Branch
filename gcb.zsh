@@ -11,9 +11,8 @@ gcb() {
     local existing_priority=0
     local ordered_branch=""
     local branch_seen=0
-    local -A branch_log_prefix_map
-    local -A branch_log_message_map
     local -A branch_log_priority_map
+    local -A branch_log_line_map
     local -a branch_log_order
 
     record_branch_status() {
@@ -45,14 +44,13 @@ gcb() {
             branch_log_order+=("$log_branch")
         fi
 
-        branch_log_prefix_map["$log_branch"]="$log_prefix"
-        branch_log_message_map["$log_branch"]="$log_message"
         branch_log_priority_map["$log_branch"]="$log_priority"
+        branch_log_line_map["$log_branch"]="[$log_prefix] $log_branch - $log_message"
     }
 
     flush_branch_statuses() {
         for ordered_branch in "${branch_log_order[@]}"; do
-            echo "[${branch_log_prefix_map[$ordered_branch]}] $ordered_branch - ${branch_log_message_map[$ordered_branch]}"
+            print -r -- "${branch_log_line_map[$ordered_branch]}"
         done
     }
 
