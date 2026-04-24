@@ -7,51 +7,12 @@ gcb() {
     local log_prefix=""
     local log_branch=""
     local log_message=""
-    local log_priority=0
-    local existing_priority=0
-    local ordered_branch=""
-    local branch_seen=0
-    local -A branch_log_priority_map
-    local -A branch_log_line_map
-    local -a branch_log_order
 
-    record_branch_status() {
+    log_branch_status() {
         log_prefix="$1"
         log_branch="$2"
         log_message="$3"
-        case "$log_prefix" in
-            SKIP) log_priority=40 ;;
-            WARN) log_priority=30 ;;
-            DELETE) log_priority=20 ;;
-            OK) log_priority=10 ;;
-            *) log_priority=0 ;;
-        esac
-
-        existing_priority="${branch_log_priority_map[$log_branch]:-0}"
-        if (( log_priority < existing_priority )); then
-            return
-        fi
-
-        branch_seen=0
-        for ordered_branch in "${branch_log_order[@]}"; do
-            if [[ "$ordered_branch" == "$log_branch" ]]; then
-                branch_seen=1
-                break
-            fi
-        done
-
-        if (( branch_seen == 0 )); then
-            branch_log_order+=("$log_branch")
-        fi
-
-        branch_log_priority_map["$log_branch"]="$log_priority"
-        branch_log_line_map["$log_branch"]="[$log_prefix] $log_branch - $log_message"
-    }
-
-    flush_branch_statuses() {
-        for ordered_branch in "${branch_log_order[@]}"; do
-            print -r -- "${branch_log_line_map[$ordered_branch]}"
-        done
+        print -r -- "[$log_prefix] $log_branch - $log_message"
     }
 
     if [[ "$1" == "--force" || "$1" == "-f" ]]; then
@@ -159,9 +120,9 @@ gcb() {
 
             if [[ -n "$branch_delete_reason" ]]; then
                 if git --git-dir="$git_dir" branch -D "$branch_name" >/dev/null 2>&1; then
-                    record_branch_status "DELETE" "$branch_name" "$branch_delete_reason"
+                    log_branch_status "DELETE" "$branch_name" "$branch_delete_reason"
                 else
-                    record_branch_status "WARN" "$branch_name" "failed to delete ($branch_delete_reason)"
+                    log_branch_status "WARN" "$branch_name" "failed to delete ($branch_delete_reason)"
                 fi
             fi
         done < <(
@@ -176,31 +137,31 @@ gcb() {
             fi
 
             if [[ -z "${remote_branch_map[$wt_branch]}" ]]; then
-                record_branch_status "SKIP" "$wt_branch" "deleted on origin"
+                log_branch_status "SKIP" "$wt_branch" "deleted on origin"
                 continue
             fi
 
             wt_status="$(git -C "$wt_path" status --porcelain 2>/dev/null)"
             if [[ -n "$wt_status" ]]; then
-                record_branch_status "SKIP" "$wt_branch" "uncommitted changes"
+                log_branch_status "SKIP" "$wt_branch" "uncommitted changes"
                 continue
             fi
 
             wt_upstream="$(git -C "$wt_path" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
             if [[ -z "$wt_upstream" ]]; then
-                record_branch_status "SKIP" "$wt_branch" "no upstream configured"
+                log_branch_status "SKIP" "$wt_branch" "no upstream configured"
                 continue
             fi
 
             pull_output="$(git -C "$wt_path" pull --rebase 2>&1)"
             if [[ $? -eq 0 ]]; then
                 if [[ "$pull_output" == *"Already up to date."* ]]; then
-                    record_branch_status "OK" "$wt_branch" "already up to date"
+                    log_branch_status "OK" "$wt_branch" "already up to date"
                 else
-                    record_branch_status "OK" "$wt_branch" "updated"
+                    log_branch_status "OK" "$wt_branch" "updated"
                 fi
             else
-                record_branch_status "WARN" "$wt_branch" "failed to update"
+                log_branch_status "WARN" "$wt_branch" "failed to update"
             fi
         done < <(
             git --git-dir="$git_dir" worktree list --porcelain \
@@ -215,7 +176,6 @@ gcb() {
         )
 
         git --git-dir="$git_dir" worktree prune >/dev/null 2>&1
-        flush_branch_statuses
         return 0
     fi
 
@@ -245,9 +205,9 @@ gcb() {
         [[ "$merged_branch" == "$default_branch" ]] && continue
 
         if git branch -d "$merged_branch" >/dev/null 2>&1 || git branch -D "$merged_branch" >/dev/null 2>&1; then
-            record_branch_status "DELETE" "$merged_branch" "merged into $default_branch"
+            log_branch_status "DELETE" "$merged_branch" "merged into $default_branch"
         else
-            record_branch_status "WARN" "$merged_branch" "failed to delete"
+            log_branch_status "WARN" "$merged_branch" "failed to delete"
         fi
     done < <(
         git for-each-ref refs/heads --merged="$default_branch" --format='%(refname:strip=2)'
@@ -256,8 +216,7 @@ gcb() {
     local repo_status=""
     repo_status="$(git status --porcelain 2>/dev/null)"
     if [[ -n "$repo_status" ]]; then
-        record_branch_status "SKIP" "$current_branch" "uncommitted changes"
-        flush_branch_statuses
+        log_branch_status "SKIP" "$current_branch" "uncommitted changes"
         return 0
     fi
 
@@ -265,15 +224,12 @@ gcb() {
     repo_pull_output="$(git pull --rebase 2>&1)"
     if [[ $? -eq 0 ]]; then
         if [[ "$repo_pull_output" == *"Already up to date."* ]]; then
-            record_branch_status "OK" "$current_branch" "already up to date"
+            log_branch_status "OK" "$current_branch" "already up to date"
         else
-            record_branch_status "OK" "$current_branch" "updated"
+            log_branch_status "OK" "$current_branch" "updated"
         fi
     else
-        record_branch_status "WARN" "$current_branch" "failed to update"
-        flush_branch_statuses
+        log_branch_status "WARN" "$current_branch" "failed to update"
         return 1
     fi
-
-    flush_branch_statuses
 }
