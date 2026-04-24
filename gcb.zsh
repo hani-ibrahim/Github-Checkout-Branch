@@ -8,12 +8,29 @@ gcb() {
     local log_branch=""
     local log_message=""
     local -a checked_out_branches
+    local log_started=0
+    local log_color=""
 
     log_branch_status() {
         log_prefix="$1"
         log_branch="$2"
         log_message="$3"
-        print -r -- "[$log_prefix] $log_branch - $log_message"
+
+        if (( log_started == 0 )); then
+            echo ""
+            log_started=1
+        fi
+
+        case "$log_prefix" in
+            SKIP) log_color="yellow" ;;
+            OK) log_color="blue" ;;
+            UPDATED) log_color="green" ;;
+            DELETE) log_color="red" ;;
+            WARN) log_color="yellow" ;;
+            *) log_color="white" ;;
+        esac
+
+        print -P -- "%F{$log_color}[$log_prefix]%f $log_branch - $log_message"
     }
 
     branch_exists_on_origin() {
@@ -165,7 +182,7 @@ gcb() {
                 if [[ "$pull_output" == *"Already up to date."* ]]; then
                     log_branch_status "OK" "$wt_branch" "already up to date"
                 else
-                    log_branch_status "OK" "$wt_branch" "updated"
+                    log_branch_status "UPDATED" "$wt_branch" "updated"
                 fi
             else
                 log_branch_status "WARN" "$wt_branch" "failed to update"
@@ -233,7 +250,7 @@ gcb() {
         if [[ "$repo_pull_output" == *"Already up to date."* ]]; then
             log_branch_status "OK" "$current_branch" "already up to date"
         else
-            log_branch_status "OK" "$current_branch" "updated"
+            log_branch_status "UPDATED" "$current_branch" "updated"
         fi
     else
         log_branch_status "WARN" "$current_branch" "failed to update"
