@@ -2,7 +2,7 @@
 
 `gco` and `gcb` are lightweight Git helpers for fast branch switching.
 
-- `gco` finds a branch from cached `origin/*` refs and switches to it.
+- `gco` finds a branch from cached `origin/*` refs and switches to it, or creates a new branch and pushes it.
 - `gcb` refreshes remote refs, updates clean worktrees in place, and cleans up safe local branches.
 - In a worktree workspace, `gco` opens or creates a dedicated worktree for the selected branch.
 - In a normal repository, `gco` switches the current repo to the selected branch.
@@ -21,7 +21,8 @@ Search order:
 2. case-insensitive partial match second
 
 If exactly one branch matches, `gco` switches to it immediately.
-If multiple branches match, `gco` shows an interactive numbered list and asks you to choose one.
+If multiple branches match, `gco` shows an interactive numbered list and asks you to choose one, or lets you enter `c` / `create` to create the requested branch.
+If no branch matches, `gco` shows a single create option.
 
 #### Parameters
 
@@ -37,6 +38,8 @@ Supported and unsupported input forms:
 | Beginning of branch name | `gco dev` | yes | Uses case-insensitive partial matching when exact match is not found |
 | Unique substring inside branch name | `gco 104` | yes | Works if it resolves to one branch |
 | Mixed-case search text | `gco TICKET` | yes | Partial matching is case-insensitive |
+| Create from multiple matches | `gco ticket` then `c` | yes | Creates a branch named exactly `ticket` |
+| Create from no matches | `gco new-feature` then `c` | yes | Creates and pushes `new-feature` |
 | Second positional index (unsupported) | `gco ticket 2` | no | Not implemented in the current script |
 | Flag-based index selection (unsupported) | `gco --index 2` | no | `gco` does not accept flags |
 | Non-interactive disambiguation (unsupported) | `printf "1\n" \| gco ticket` | no | Multiple matches require an interactive TTY |
@@ -62,7 +65,7 @@ Then:
 | `gco 104` | partial match: `ticket-104-fix-readme` | Switch to `ticket-104-fix-readme` |
 | `gco TICKET` | partial matches, case-insensitive | Show a selection list |
 | `gco ticket` | `ticket-104-fix-readme`, `ticket-77-update-translations` | Show a selection list |
-| `gco missing` | no matches | Print an error |
+| `gco missing` | no matches | Show a create option |
 
 #### Interactive selection example
 
@@ -73,10 +76,44 @@ $ gco ticket
 More than one branch found:
 1. ticket-104-fix-readme
 2. ticket-77-update-translations
+c. create ticket
 Please select a branch: 2
 ```
 
 `gco` then checks out `ticket-77-update-translations`.
+
+To create a new branch from the same prompt, enter `c` or `create`.
+
+```text
+$ gco ticket
+More than one branch found:
+1. ticket-104-fix-readme
+2. ticket-77-update-translations
+c. create ticket
+Please select a branch: c
+1. Default branch "main"
+2. Current branch "develop"
+3. Enter branch
+Select base branch: 1
+```
+
+`gco` creates `ticket` from `main`, runs `git push -u origin ticket`, and then checks it out.
+
+If no branch matches:
+
+```text
+$ gco new-feature
+No matching branch found in cached origin refs.
+c. create new-feature
+Please select an option: create
+1. Default branch "main"
+2. Current branch "develop"
+3. Enter branch
+Select base branch: 3
+Enter base branch: release
+```
+
+When option 3 is selected, the entered base branch is resolved with the same cached exact and partial matching behavior as normal `gco` checkout.
 
 #### Behavior in each mode
 
@@ -85,6 +122,7 @@ In a normal repository:
 - if the local branch already exists, `gco` switches to it
 - otherwise it creates or resets the local branch from `refs/remotes/origin/<branch>`
 - then it switches the current repository to that branch
+- for a newly created branch, it asks for a base branch, creates the branch, pushes it with upstream tracking, and then switches to it
 
 In a worktree workspace:
 
@@ -92,6 +130,7 @@ In a worktree workspace:
 - otherwise it creates the local branch from `refs/remotes/origin/<branch>`
 - then it creates a worktree under `<workspace-root>/<branch>`
 - finally it changes into that worktree directory
+- for a newly created branch, it asks for a base branch, creates the branch in the shared `.bare` repo, pushes it with upstream tracking, and then creates or opens its worktree
 
 #### Errors and edge cases
 
@@ -100,8 +139,8 @@ In a worktree workspace:
 - no query is provided
 - you are not inside a supported git repository or worktree workspace
 - no cached `origin/*` refs exist yet
-- the branch does not exist in the cached refs
-- multiple branches match but there is no interactive TTY available
+- branch creation is cancelled or the new branch name is invalid
+- an interactive selection is required but there is no TTY available
 
 When a branch was created recently on the remote, run `gcb` first to refresh the cache.
 
@@ -160,6 +199,7 @@ Notes for worktree mode:
 
 - Run `gcb` before `gco` if a branch was created recently.
 - `gco` only searches cached remote refs, not the network directly.
+- Creating a branch is the exception: `gco` runs `git push -u origin <branch>` after creating it.
 - In worktree mode, branches are created under the workspace root using the branch name as the path.
 
 ## Repository Modes

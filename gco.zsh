@@ -38,8 +38,8 @@
 # Notes:
 #
 # - This helper expects `gcb` to refresh `origin/*` refs first.
-# - If the requested branch is missing from cached origin refs, it will ask you
-#   to run `gcb`.
+# - If the requested branch is missing from cached origin refs, it can create
+#   the branch and push it to origin.
 #
 
 unalias gco 2>/dev/null
@@ -85,6 +85,73 @@ gco_select_from_list() {
     done
 }
 
+gco_select_branch_or_create() {
+    local prompt="$1"
+    local create_branch="$2"
+    shift 2
+
+    local -a items
+    items=("$@")
+
+    local i=1
+    local choice=""
+
+    for item in "${items[@]}"; do
+        print -u2 -- "$i. $item"
+        ((i++))
+    done
+    print -u2 -- "c. create $create_branch"
+
+    while true; do
+        printf "%s" "$prompt" >&2
+        if [[ ! -t 0 ]]; then
+            print -P "%F{red}ERROR - Interactive selection requires a TTY%f" >&2
+            return 1
+        fi
+        read -r choice || {
+            print -P "%F{red}ERROR - Selection cancelled%f" >&2
+            return 1
+        }
+
+        if [[ "$choice" =~ '^[0-9]+$' ]]; then
+            if (( choice >= 1 && choice <= ${#items[@]} )); then
+                echo "${items[$choice]}"
+                return 0
+            fi
+        elif [[ "${choice:l}" == "c" || "${choice:l}" == "create" ]]; then
+            echo "__GCO_CREATE__"
+            return 0
+        fi
+
+        print -P "%F{red}ERROR - Please enter a valid number, c, or create%f"
+    done
+}
+
+gco_confirm_create_only() {
+    local create_branch="$1"
+    local choice=""
+
+    print -P "%F{yellow}No matching branch found in cached origin refs.%f" >&2
+    print -u2 -- "c. create $create_branch"
+
+    printf "Please select an option: " >&2
+    if [[ ! -t 0 ]]; then
+        print -P "%F{red}ERROR - Interactive selection requires a TTY%f" >&2
+        return 1
+    fi
+    read -r choice || {
+        print -P "%F{red}ERROR - Selection cancelled%f" >&2
+        return 1
+    }
+
+    if [[ "${choice:l}" == "c" || "${choice:l}" == "create" ]]; then
+        return 0
+    fi
+
+    print -P "%F{red}ERROR - Branch creation cancelled%f" >&2
+    return 1
+}
+
 gco_match_query() {
     local query="$1"
     shift
@@ -107,6 +174,208 @@ gco_match_query() {
         printf '%s\n' "${exact_matches[@]}"
     else
         printf '%s\n' "${partial_matches[@]}"
+    fi
+}
+
+gco_get_default_branch_name() {
+    local mode="$1"
+    local git_dir="$2"
+    local default_branch=""
+
+    if [[ "$mode" == "worktree" ]]; then
+        default_branch="$(
+            git --git-dir="$git_dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
+            | sed 's#^origin/##'
+        )"
+    else
+        default_branch="$(
+            git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
+            | sed 's#^origin/##'
+        )"
+    fi
+
+    if [[ -n "$default_branch" ]]; then
+        echo "$default_branch"
+        return 0
+    fi
+
+    git branch --show-current 2>/dev/null
+}
+
+gco_get_current_branch_name() {
+    git branch --show-current 2>/dev/null
+}
+
+gco_branch_ref_exists() {
+    local mode="$1"
+    local git_dir="$2"
+    local ref="$3"
+
+    if [[ "$mode" == "worktree" ]]; then
+        git --git-dir="$git_dir" rev-parse --verify --quiet "$ref^{commit}" >/dev/null
+    else
+        git rev-parse --verify --quiet "$ref^{commit}" >/dev/null
+    fi
+}
+
+gco_resolve_remote_branch_ref() {
+    local mode="$1"
+    local git_dir="$2"
+    local branch="$3"
+    local ref="refs/remotes/origin/$branch"
+
+    if gco_branch_ref_exists "$mode" "$git_dir" "$ref"; then
+        echo "$ref"
+        return 0
+    fi
+
+    ref="refs/heads/$branch"
+    if gco_branch_ref_exists "$mode" "$git_dir" "$ref"; then
+        echo "$ref"
+        return 0
+    fi
+
+    print -P "%F{red}ERROR - Base branch not found: $branch%f" >&2
+    return 1
+}
+
+gco_select_base_from_entered_branch() {
+    local mode="$1"
+    local git_dir="$2"
+    shift 2
+
+    local -a cached_branches
+    cached_branches=("$@")
+
+    local branch_query=""
+    printf "Enter base branch: " >&2
+    if [[ ! -t 0 ]]; then
+        print -P "%F{red}ERROR - Interactive selection requires a TTY%f" >&2
+        return 1
+    fi
+    read -r branch_query || {
+        print -P "%F{red}ERROR - Selection cancelled%f" >&2
+        return 1
+    }
+
+    if [[ -z "$branch_query" ]]; then
+        print -P "%F{red}ERROR - Base branch is empty%f" >&2
+        return 1
+    fi
+
+    local -a matching_branches
+    matching_branches=("${(@f)$(gco_match_query "$branch_query" "${cached_branches[@]}")}")
+    matching_branches=("${(@)matching_branches:#}")
+
+    if (( ${#matching_branches[@]} == 0 )); then
+        print -P "%F{red}ERROR - Can't find the base branch in cached origin refs%f" >&2
+        return 1
+    fi
+
+    local selected_base=""
+    if (( ${#matching_branches[@]} == 1 )); then
+        selected_base="${matching_branches[1]}"
+    else
+        print -P "%F{red}More than one base branch found:%f" >&2
+        selected_base="$(gco_select_from_list "Please select a base branch: " "${matching_branches[@]}")" || return 1
+    fi
+
+    gco_resolve_remote_branch_ref "$mode" "$git_dir" "$selected_base"
+}
+
+gco_select_create_base_ref() {
+    local mode="$1"
+    local git_dir="$2"
+    shift 2
+
+    local -a cached_branches
+    cached_branches=("$@")
+
+    local default_branch=""
+    local current_branch=""
+    local choice=""
+
+    default_branch="$(gco_get_default_branch_name "$mode" "$git_dir")"
+    current_branch="$(gco_get_current_branch_name)"
+
+    [[ -z "$default_branch" ]] && default_branch="<unknown>"
+    [[ -z "$current_branch" ]] && current_branch="<none>"
+
+    print -u2 -- "1. Default branch \"$default_branch\""
+    print -u2 -- "2. Current branch \"$current_branch\""
+    print -u2 -- "3. Enter branch"
+
+    while true; do
+        printf "Select base branch: " >&2
+        if [[ ! -t 0 ]]; then
+            print -P "%F{red}ERROR - Interactive selection requires a TTY%f" >&2
+            return 1
+        fi
+        read -r choice || {
+            print -P "%F{red}ERROR - Selection cancelled%f" >&2
+            return 1
+        }
+
+        case "$choice" in
+            1)
+                if [[ "$default_branch" == "<unknown>" ]]; then
+                    print -P "%F{red}ERROR - Default branch could not be detected%f" >&2
+                    return 1
+                fi
+                gco_resolve_remote_branch_ref "$mode" "$git_dir" "$default_branch"
+                return $?
+                ;;
+            2)
+                if [[ "$current_branch" == "<none>" ]]; then
+                    print -P "%F{red}ERROR - Current branch could not be detected%f" >&2
+                    return 1
+                fi
+                echo "refs/heads/$current_branch"
+                return 0
+                ;;
+            3)
+                gco_select_base_from_entered_branch "$mode" "$git_dir" "${cached_branches[@]}"
+                return $?
+                ;;
+        esac
+
+        print -P "%F{red}ERROR - Please enter 1, 2, or 3%f" >&2
+    done
+}
+
+gco_create_branch() {
+    local mode="$1"
+    local git_dir="$2"
+    local branch="$3"
+    shift 3
+
+    local -a cached_branches
+    cached_branches=("$@")
+
+    if ! git check-ref-format --branch "$branch" >/dev/null 2>&1; then
+        print -P "%F{red}ERROR - Invalid branch name: $branch%f" >&2
+        return 1
+    fi
+
+    local base_ref=""
+    base_ref="$(gco_select_create_base_ref "$mode" "$git_dir" "${cached_branches[@]}")" || return 1
+
+    if [[ "$mode" == "worktree" ]]; then
+        if git --git-dir="$git_dir" show-ref --verify --quiet "refs/heads/$branch"; then
+            print -P "%F{red}ERROR - Local branch already exists: $branch%f" >&2
+            return 1
+        fi
+
+        git --git-dir="$git_dir" branch --no-track "$branch" "$base_ref" || return 1
+        git --git-dir="$git_dir" push -u origin "$branch" || return 1
+    else
+        if git show-ref --verify --quiet "refs/heads/$branch"; then
+            print -P "%F{red}ERROR - Local branch already exists: $branch%f" >&2
+            return 1
+        fi
+
+        git branch --no-track "$branch" "$base_ref" || return 1
+        git push -u origin "$branch" || return 1
     fi
 }
 
@@ -192,6 +461,7 @@ gco() {
     else
         cached_branches=("${(@f)$(gco_get_cached_origin_branches_normal)}")
     fi
+    cached_branches=("${(@)cached_branches:#}")
 
     if (( ${#cached_branches[@]} == 0 )); then
         print -P "%F{red}ERROR - No cached origin branches found%f"
@@ -200,19 +470,28 @@ gco() {
     fi
 
     matching_branches=("${(@f)$(gco_match_query "$query" "${cached_branches[@]}")}")
-
-    if (( ${#matching_branches[@]} == 0 )); then
-        print -P "%F{red}ERROR - Can't find the branch in cached origin refs%f"
-        print -P "%F{yellow}Run 'gcb' first if the branch was created recently.%f"
-        return 1
-    fi
+    matching_branches=("${(@)matching_branches:#}")
 
     local selected_branch=""
-    if (( ${#matching_branches[@]} == 1 )); then
+    local create_branch=0
+
+    if (( ${#matching_branches[@]} == 0 )); then
+        gco_confirm_create_only "$query" || return 1
+        selected_branch="$query"
+        create_branch=1
+    elif (( ${#matching_branches[@]} == 1 )); then
         selected_branch="${matching_branches[1]}"
     else
         print -P "%F{red}More than one branch found:%f"
-        selected_branch="$(gco_select_from_list "Please select a branch: " "${matching_branches[@]}")" || return 1
+        selected_branch="$(gco_select_branch_or_create "Please select a branch: " "$query" "${matching_branches[@]}")" || return 1
+        if [[ "$selected_branch" == "__GCO_CREATE__" ]]; then
+            selected_branch="$query"
+            create_branch=1
+        fi
+    fi
+
+    if (( create_branch )); then
+        gco_create_branch "$mode" "$git_dir" "$selected_branch" "${cached_branches[@]}" || return 1
     fi
 
     if [[ -z "$selected_branch" ]]; then
@@ -250,8 +529,10 @@ gco() {
 
         mkdir -p "$(dirname "$target_path")" || return 1
 
-        # Refresh/create the local branch from cached origin/<branch>.
-        git --git-dir="$git_dir" branch -f "$selected_branch" "refs/remotes/origin/$selected_branch" || return 1
+        if (( ! create_branch )); then
+            # Refresh/create the local branch from cached origin/<branch>.
+            git --git-dir="$git_dir" branch -f "$selected_branch" "refs/remotes/origin/$selected_branch" || return 1
+        fi
 
         # Create and open the worktree.
         git --git-dir="$git_dir" worktree add "$target_path" "$selected_branch" || return 1
