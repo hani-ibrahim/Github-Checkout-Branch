@@ -76,7 +76,7 @@ $ gco ticket
 More than one branch found:
 1. ticket-104-fix-readme
 2. ticket-77-update-translations
-c. create ticket
+c. Create a new branch "ticket"
 Please select a branch: 2
 ```
 
@@ -89,7 +89,7 @@ $ gco ticket
 More than one branch found:
 1. ticket-104-fix-readme
 2. ticket-77-update-translations
-c. create ticket
+c. Create a new branch "ticket"
 Please select a branch: c
 1. Default branch "main"
 2. Current branch "develop"
@@ -104,7 +104,7 @@ If no branch matches:
 ```text
 $ gco new-feature
 No matching branch found in cached origin refs.
-c. create new-feature
+c. Create a new branch "new-feature"
 Please select an option: create
 1. Default branch "main"
 2. Current branch "develop"

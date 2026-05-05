@@ -100,7 +100,7 @@ gco_select_branch_or_create() {
         print -u2 -- "$i. $item"
         ((i++))
     done
-    print -u2 -- "c. create $create_branch"
+    print -P -- "%F{green}c. Create a new branch \"$create_branch\"%f" >&2
 
     while true; do
         printf "%s" "$prompt" >&2
@@ -132,7 +132,7 @@ gco_confirm_create_only() {
     local choice=""
 
     print -P "%F{yellow}No matching branch found in cached origin refs.%f" >&2
-    print -u2 -- "c. create $create_branch"
+    print -P -- "%F{green}c. Create a new branch \"$create_branch\"%f" >&2
 
     printf "Please select an option: " >&2
     if [[ ! -t 0 ]]; then
