@@ -526,10 +526,16 @@ gco() {
         existing_path="$(gco_get_worktree_path_for_branch "$git_dir" "$selected_branch")"
 
         # If the branch is already checked out in an existing worktree, go there.
+        # Stale worktree metadata can point at a directory that was deleted.
         if [[ -n "$existing_path" ]]; then
-            cd "$existing_path" || return 1
-            pwd
-            return 0
+            if [ -d "$existing_path" ]; then
+                cd "$existing_path" || return 1
+                pwd
+                return 0
+            fi
+
+            print -P "%F{yellow}Stale worktree path found, pruning: $existing_path%f" >&2
+            git --git-dir="$git_dir" worktree prune || return 1
         fi
 
         # If the target path already exists, allow it only if it is already a git worktree.
