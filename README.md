@@ -40,7 +40,7 @@ Supported and unsupported input forms:
 | Mixed-case search text | `gco TICKET` | yes | Partial matching is case-insensitive |
 | Create from multiple matches | `gco ticket` then `c` | yes | Creates a branch named exactly `ticket` |
 | Create from no matches | `gco new-feature` then `c` | yes | Creates and pushes `new-feature` |
-| Second positional index (unsupported) | `gco ticket 2` | no | Not implemented in the current script |
+| Multi-word branch phrase | `gco new feature` | yes | Treated as `new-feature` before matching or creating |
 | Flag-based index selection (unsupported) | `gco --index 2` | no | `gco` does not accept flags |
 | Non-interactive disambiguation (unsupported) | `printf "1\n" \| gco ticket` | no | Multiple matches require an interactive TTY |
 
@@ -91,6 +91,9 @@ More than one branch found:
 2. ticket-77-update-translations
 c. Create a new branch "ticket"
 Please select a branch: c
+
+Which base branch should the new branch start from?
+
 1. Default branch "main"
 2. Current branch "develop"
 3. Enter branch
@@ -106,6 +109,9 @@ $ gco new-feature
 No matching branch found in cached origin refs.
 c. Create a new branch "new-feature"
 Please select an option: create
+
+Which base branch should the new branch start from?
+
 1. Default branch "main"
 2. Current branch "develop"
 3. Enter branch
@@ -114,6 +120,8 @@ Enter base branch: release
 ```
 
 When option 3 is selected, the entered base branch is resolved with the same cached exact and partial matching behavior as normal `gco` checkout.
+
+Spaces in the initially provided branch name are replaced with hyphens before matching, showing, or creating the branch name. For example, both `gco "new feature"` and `gco new feature` are treated as `gco new-feature`.
 
 #### Behavior in each mode
 

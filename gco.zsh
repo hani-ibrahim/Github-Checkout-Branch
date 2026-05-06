@@ -152,6 +152,12 @@ gco_confirm_create_only() {
     return 1
 }
 
+gco_normalize_create_branch_name() {
+    local branch="$1"
+
+    echo "${branch// /-}"
+}
+
 gco_match_query() {
     local query="$1"
     shift
@@ -301,6 +307,9 @@ gco_select_create_base_ref() {
     [[ -z "$default_branch" ]] && default_branch="<unknown>"
     [[ -z "$current_branch" ]] && current_branch="<none>"
 
+    print -u2
+    print -u2 -- "Which base branch should the new branch start from?"
+    print -u2
     print -u2 -- "1. Default branch \"$default_branch\""
     print -u2 -- "2. Current branch \"$current_branch\""
     print -u2 -- "3. Enter branch"
@@ -443,7 +452,8 @@ gco() {
         return 1
     fi
 
-    local query="$1"
+    local query=""
+    query="$(gco_normalize_create_branch_name "$*")"
     local -a detected
     local mode=""
     local root=""
