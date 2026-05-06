@@ -121,7 +121,9 @@ Enter base branch: release
 
 When option 3 is selected, the entered base branch is resolved with the same cached exact and partial matching behavior as normal `gco` checkout.
 
-Spaces in the initially provided branch name are replaced with hyphens before matching, showing, or creating the branch name. For example, both `gco "new feature"` and `gco new feature` are treated as `gco new-feature`.
+Runs of characters outside letters, numbers, underscores, and hyphens are collapsed into one hyphen before matching, showing, or creating the branch name. This removes branch-breaking characters such as slashes, backslashes, quotes, and punctuation while preserving readable word boundaries. For example, both `gco "new feature"` and `gco new feature` are treated as `gco new-feature`, and `gco "LAPPS-2315 Catalog SwiftUI migration - AI kickoff"` is treated as `gco LAPPS-2315-Catalog-SwiftUI-migration-AI-kickoff`.
+
+Raw pasted newlines are interpreted by the shell as separate commands before `gco` can read them. Paste multi-word names on one command line, or quote the multiline text if you really need to include a newline in the input.
 
 #### Behavior in each mode
 

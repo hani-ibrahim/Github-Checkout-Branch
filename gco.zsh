@@ -155,7 +155,14 @@ gco_confirm_create_only() {
 gco_normalize_create_branch_name() {
     local branch="$1"
 
-    echo "${branch// /-}"
+    emulate -L zsh
+    setopt extendedglob
+
+    branch="${branch//[^[:alnum:]_-]##/-}"
+    branch="${branch//-##/-}"
+    branch="${branch##-}"
+    branch="${branch%%-}"
+    echo "$branch"
 }
 
 gco_match_query() {
